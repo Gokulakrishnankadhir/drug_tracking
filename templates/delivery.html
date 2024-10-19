@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Delivery Page</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            padding: 20px;
+            background-color: #f9f9f9;
+        }
+        h2 {
+            color: #333;
+        }
+        input {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        button {
+            padding: 10px 15px;
+            font-size: 16px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #status {
+            margin-top: 20px;
+            font-weight: bold;
+            color: #d9534f; /* Changed color for better visibility */
+        }
+        #qrCodeContainer {
+            margin-top: 20px;
+            display: none; /* Initially hide the QR code container */
+        }
+        #qrCodeContainer img {
+            max-width: 100%; /* Make the QR code responsive */
+        }
+    </style>
+</head>
+<body>
+    <h2>Create Delivery Request</h2>
+    <form id="deliveryForm">
+        <input type="text" id="destination" placeholder="Destination" required>
+        <input type="number" id="units" placeholder="Units" required>
+        <input type="text" id="drugType" placeholder="Drug Type" required>
+        <button type="submit" id="confirmButton">Confirm Request</button>
+    </form>
+
+    <p id="status"></p>
+
+    <div id="qrCodeContainer">
+        <h3>QR Code:</h3>
+        <img id="qrCodeImage" alt="QR Code for Transaction" />
+    </div>
+
+    <!-- Include Web3.js and jQuery -->
+    <script src="https://cdn.jsdelivr.net/npm/web3/dist/web3.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <script src="https://unpkg.com/qrcode/build/qrcode.min.js"></script>
+
+    <script>
+        $(document).ready(function() {
+            // Attach event listener to the delivery form
+            $('#deliveryForm').on('submit', function(event) {
+                event.preventDefault();  // Prevent the form from submitting the traditional way
+                
+                // Get form data
+                const destination = $('#destination').val();
+                const units = $('#units').val();
+                const drugType = $('#drugType').val();
+
+                // Check for valid inputs
+                if (!destination || !units || !drugType) {
+                    alert("Please fill in all fields.");
+                    return;
+                }
+
+                // Generate transaction data and hash
+                const transaction_data = `${destination}-${units}-${drugType}-${Date.now()}`;
+                const hash_object = CryptoJS.SHA256(transaction_data);
+                const transaction_hash = hash_object.toString(CryptoJS.enc.Hex).substring(0, 64);
+
+                // Show QR code
+                $('#qrCodeContainer').show();
+                $('#qrCodeImage').attr('src', `https://api.qrserver.com/v1/create-qr-code/?data=${transaction_hash}&size=150x150`);
+                
+                // Call createNFT function to mint the NFT
+                createNFT(destination, units, drugType);
+            });
+        });
+
+        async function createNFT(destination, units, drugType) {
+            // Connect to MetaMask
+            if (typeof window.ethereum !== 'undefined') {
+                // Initialize Web3
+                const web3 = new Web3(window.ethereum);
+                await window.ethereum.request({ method: 'eth_requestAccounts' });
+                const accounts = await web3.eth.getAccounts();
+                const address = accounts[0];
+
+                // Define the contract ABI and address
+                const contractABI = [
+                    {
+                        "inputs": [
+                            {
+                                "internalType": "address",
+                                "name": "recipient",
+                                "type": "address"
+                            },
+                            {
+                                "internalType": "string",
+                                "name": "units",
+                                "type": "string"
+                            },
+                            {
+                                "internalType": "string",
+                                "name": "destination",
+                                "type": "string"
+                            },
+                            {
+                                "internalType": "string",
+                                "name": "drugType",
+                                "type": "string"
+                            }
+                        ],
+                        "name": "mintNFT",
+                        "outputs": [
+                            {
+                                "internalType": "uint256",
+                                "name": "",
+                                "type": "uint256"
+                            }
+                        ],
+                        "stateMutability": "nonpayable",
+                        "type": "function"
+                    }
+                    // Include other necessary ABI methods if required
+                ];
+
+                const contractAddress = '0x3212E12FEfD922f3C273238ebfeE8C113e2D9100'; // Replace with your contract address
+                const contract = new web3.eth.Contract(contractABI, contractAddress);
+
+                try {
+                    // Send transaction to mintNFT
+                    const tx = await contract.methods.mintNFT(
+                        address, // The recipient address
+                        units.toString(), // Units as string
+                        destination, // Destination as string
+                        drugType // Drug Type as string
+                    ).send({ from: address });
+
+                    // Update status with transaction hash
+                    $('#status').text('NFT created successfully! Transaction Hash: ' + tx.transactionHash);
+                } catch (error) {
+                    console.error('Error creating NFT:', error);
+                    $('#status').text('Error creating NFT: ' + error.message);
+                }
+            } else {
+                alert("Please install MetaMask!");
+            }
+        }
+    </script>
+</body>
+</html>
